@@ -5,6 +5,8 @@ import com.musicg.api.WhistleApi;
 import com.musicg.wave.WaveHeader;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
+import android.util.Log;
+
 public class DetectorThread extends Thread{
     private RecorderThread grabadora;
     private WaveHeader waveHeader;
@@ -73,12 +75,15 @@ public class DetectorThread extends Thread{
                     boolean isWhistle = silbidoApi.isWhistle(buffer);
                     if (listaResultados.getFirst()) {
                         numWhistles--;
+
                     }
 
                     listaResultados.removeFirst();
                     listaResultados.add(isWhistle);
 
                     if (isWhistle) {
+                        Log.d("silvido","si detectó");
+                        onWhistleDetected();
                         numWhistles++;
                     }
 
@@ -105,6 +110,7 @@ public class DetectorThread extends Thread{
     }
 
     private void onWhistleDetected(){
+
         if (detectarSonidoListener != null){
             detectarSonidoListener.onWhistleDetected();
         }

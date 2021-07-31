@@ -5,8 +5,10 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.os.Binder;
 import android.os.IBinder;
 
+import android.util.Log;
 import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
@@ -18,11 +20,23 @@ public class VocalServicio extends Service implements DetectarSonidoListener {
     public static final int DETECT_NONE = 0;
     public static final int DETECT_WHISTLE = 1;
     public static int selectedDetection = DETECT_NONE;
+
+    private ServiceCallbacks serviceCallbacks;
+    private final IBinder binder = new LocalBinder();
+    // Class used for the client Binder.
+    public class LocalBinder extends Binder {
+        VocalServicio getService() {
+            // Return this instance of MyService so clients can call public methods
+            return VocalServicio.this;
+        }
+    }
+    public void setCallbacks(ServiceCallbacks callbacks) {
+        serviceCallbacks = callbacks;
+    }
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         // TODO Auto-generated method stub
-        initNotification();
-        startDetection();
+
         return START_STICKY;
     }
     public void initNotification(){
@@ -65,17 +79,23 @@ public class VocalServicio extends Service implements DetectarSonidoListener {
         stopNotification();
     }
     @Override
-    public IBinder onBind(Intent arg0) {
-        // TODO Auto-generated method stub
-        return null;
+    public IBinder onBind(Intent intent) {
+        initNotification();
+        startDetection();
+        return binder;
     }
     @Override
     public void onWhistleDetected() {
-        Intent intent = new Intent(this,VocalAlerta.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(intent);
-        Toast.makeText(this, "Silbido detectado", Toast.LENGTH_LONG).show();
-        this.stopSelf();
+
+        if (serviceCallbacks != null) {
+            Log.d("silvido","dentro del servicio ");
+            serviceCallbacks.doSomething();
+        }
+//        Intent intent = new Intent(this,VocalAlerta.class);
+//        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//        startActivity(intent);
+//        Toast.makeText(this, "Silbido detectado", Toast.LENGTH_LONG).show();
+
     }
     public void stopNotification(){
         NotificationManager mNotifyMgr = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
