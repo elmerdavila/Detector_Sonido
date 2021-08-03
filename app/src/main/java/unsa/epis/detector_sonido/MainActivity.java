@@ -53,31 +53,28 @@ import java.util.Arrays;
 import java.util.List;
 
 public class MainActivity extends Activity implements ServiceCallbacks{
-    private Button start,stop;
+    private Button start,stop; //iniciar y detener el servicio
 
-    private static final int REQUEST_PERMISSION_CAMERA = 1000;
-    private static final int REQUEST_IMAGE_CAMERA=101;
     //----------CAMERA------------------------
-    private static final String TAG = "AndroidCameraApi";
-    private TextureView textureView;
-
+    private static final String TAG = "AndroidCameraApi"; //TAG FOR LOG
+    private TextureView textureView;//previsualización de cámara
+    ImageView imageview; // donde mostrar la foto tomada
     //service
-    private boolean bound=false;
-    private VocalServicio myService;
+    private boolean bound=false;// verificar si el servicio ha sido bindeado
+    private VocalServicio myService; // el serivio
 
-    private String cameraId;
-    protected CameraDevice cameraDevice;
-    protected CameraCaptureSession cameraCaptureSessions;
+    private String cameraId; //id de la cámara
+    protected CameraDevice cameraDevice; //el dispositivo de la cámara
+    protected CameraCaptureSession cameraCaptureSessions;// capturar la sesión de la cámara
     protected CaptureRequest captureRequest;
     protected CaptureRequest.Builder captureRequestBuilder;
     private Size imageDimension;
     private ImageReader imageReader;
     private static final int REQUEST_CAMERA_PERMISSION = 200;
-    private boolean mFlashSupported;
     private Handler mBackgroundHandler;
     private HandlerThread mBackgroundThread;
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
-    ImageView imageview;
+
     static {
         ORIENTATIONS.append(Surface.ROTATION_0, 0);
         ORIENTATIONS.append(Surface.ROTATION_90, 90);
@@ -98,17 +95,13 @@ public class MainActivity extends Activity implements ServiceCallbacks{
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1000);
         }
 
-        start = (Button) findViewById(R.id.btnIniciar);
-        stop = (Button) findViewById(R.id.btnDetener);
-
-        //----------CAMERA------------------------
         textureView = findViewById(R.id.textureview);
         imageview= findViewById(R.id.imageview);
         assert textureView != null;
         textureView.setSurfaceTextureListener(textureListener);
 
-        //----------CAMERA------------------------//
-
+        start = (Button) findViewById(R.id.btnIniciar);
+        stop = (Button) findViewById(R.id.btnDetener);
 
 
         start.setOnClickListener(new View.OnClickListener(){
@@ -116,7 +109,6 @@ public class MainActivity extends Activity implements ServiceCallbacks{
             public void onClick(View v) {
                 Intent intent=new Intent(getBaseContext(),VocalServicio.class);
                 bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
-
             }
         });
         stop.setOnClickListener(new View.OnClickListener(){
@@ -130,6 +122,72 @@ public class MainActivity extends Activity implements ServiceCallbacks{
             }
         });
     }
+
+    //----------CAMERA------------------------
+    TextureView.SurfaceTextureListener textureListener = new TextureView.SurfaceTextureListener() {
+        @Override
+        public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+            //open your camera here
+            openCamera();
+        }
+
+        @Override
+        public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+            // Transform you image captured size according to the surface width and height
+        }
+
+        @Override
+        public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+            return false;
+        }
+
+        @Override
+        public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+        }
+    };
+    private final CameraDevice.StateCallback stateCallback = new CameraDevice.StateCallback() {
+        @Override
+        public void onOpened(CameraDevice camera) {
+            //This is called when the camera is open
+            Log.e(TAG, "onOpened");
+            cameraDevice = camera;
+            createCameraPreview();
+        }
+        @Override
+        public void onDisconnected(CameraDevice camera) {
+            cameraDevice.close();
+        }
+        @Override
+        public void onError(CameraDevice camera, int error) {
+            cameraDevice.close();
+            cameraDevice = null;
+        }
+    };
+
+    protected void startBackgroundThread() {
+        mBackgroundThread = new HandlerThread("Camera Background");
+        mBackgroundThread.start();
+        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+    }
+
+    protected void stopBackgroundThread() {
+        mBackgroundThread.quitSafely();
+        try {
+            mBackgroundThread.join();
+            mBackgroundThread = null;
+            mBackgroundHandler = null;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+    CameraCaptureSession.CaptureCallback captureListener = new CameraCaptureSession.CaptureCallback() {
+        @Override
+        public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
+            super.onCaptureCompleted(session, request, result);
+            createCameraPreview();
+        }
+    };
+
     public void takePicture() {
         if (null == cameraDevice) {
             Log.e(TAG, "cameraDevice is null");
@@ -188,22 +246,23 @@ public class MainActivity extends Activity implements ServiceCallbacks{
 
             };
             reader.setOnImageAvailableListener(readerListener, mBackgroundHandler);
-            final CameraCaptureSession.CaptureCallback captureListener = new CameraCaptureSession.CaptureCallback() {
-                @Override
-                public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
-                    super.onCaptureCompleted(session, request, result);
-                    Toast.makeText(MainActivity.this, "Saved:" + file, Toast.LENGTH_SHORT).show();
-                    createCameraPreview();
-                }
-            };
+
             cameraDevice.createCaptureSession(outputSurfaces, new CameraCaptureSession.StateCallback() {
                 @Override
                 public void onConfigured(CameraCaptureSession session) {
-                    try {
-                        session.capture(captureBuilder.build(), captureListener, mBackgroundHandler);
-                    } catch (CameraAccessException e) {
-                        e.printStackTrace();
-                    }
+                    new Handler().postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                session.capture(captureBuilder.build(), captureListener, mBackgroundHandler);
+                            } catch (CameraAccessException e) {
+                                Log.e(TAG, "Failed to start camera preview because it couldn't access camera", e);
+                            } catch (IllegalStateException e) {
+                                Log.e(TAG, "Failed to start camera preview.", e);
+                            }
+                        }
+                    }, 500);
+
                 }
 
                 @Override
@@ -214,68 +273,6 @@ public class MainActivity extends Activity implements ServiceCallbacks{
             e.printStackTrace();
         }
     }
-
-
-    //----------CAMERA------------------------
-    TextureView.SurfaceTextureListener textureListener = new TextureView.SurfaceTextureListener() {
-        @Override
-        public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-            //open your camera here
-            openCamera();
-        }
-
-        @Override
-        public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
-            // Transform you image captured size according to the surface width and height
-        }
-
-        @Override
-        public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-            return false;
-        }
-
-        @Override
-        public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-        }
-    };
-    private void openCamera() {
-        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
-        Log.e(TAG, "is camera open");
-        try {
-            cameraId = manager.getCameraIdList()[0];
-            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
-            StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-            assert map != null;
-            imageDimension = map.getOutputSizes(SurfaceTexture.class)[0];
-            // Add permission for camera and let user grant the permission
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
-                return;
-            }
-            manager.openCamera(cameraId, stateCallback, null);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
-        Log.e(TAG, "openCamera X");
-    }
-    private final CameraDevice.StateCallback stateCallback = new CameraDevice.StateCallback() {
-        @Override
-        public void onOpened(CameraDevice camera) {
-            //This is called when the camera is open
-            Log.e(TAG, "onOpened");
-            cameraDevice = camera;
-            createCameraPreview();
-        }
-        @Override
-        public void onDisconnected(CameraDevice camera) {
-            cameraDevice.close();
-        }
-        @Override
-        public void onError(CameraDevice camera, int error) {
-            cameraDevice.close();
-            cameraDevice = null;
-        }
-    };
 
     protected void createCameraPreview() {
         try {
@@ -306,15 +303,59 @@ public class MainActivity extends Activity implements ServiceCallbacks{
             e.printStackTrace();
         }
     }
+
+    private void openCamera() {
+        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        Log.e(TAG, "is camera open");
+        try {
+            cameraId = manager.getCameraIdList()[0];
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+            StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+            assert map != null;
+            imageDimension = map.getOutputSizes(SurfaceTexture.class)[0];
+            // Add permission for camera and let user grant the permission
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
+                return;
+            }
+            manager.openCamera(cameraId, stateCallback, null);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+        Log.e(TAG, "openCamera X");
+    }
+
+
+
     protected void updatePreview() {
         if (null == cameraDevice) {
             Log.e(TAG, "updatePreview error, return");
         }
         captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
-        try {
-            cameraCaptureSessions.setRepeatingRequest(captureRequestBuilder.build(), null, mBackgroundHandler);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
+
+            new Handler().postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        cameraCaptureSessions.setRepeatingRequest(captureRequestBuilder.build(), null, mBackgroundHandler);
+                    } catch (CameraAccessException e) {
+                        Log.e(TAG, "Failed to start camera preview because it couldn't access camera", e);
+                    } catch (IllegalStateException e) {
+                        Log.e(TAG, "Failed to start camera preview.", e);
+                    }
+                }
+            }, 500);
+
+    }
+
+    private void closeCamera() {
+        if (null != cameraDevice) {
+            cameraDevice.close();
+            cameraDevice = null;
+        }
+        if (null != imageReader) {
+            imageReader.close();
+            imageReader = null;
         }
     }
 
@@ -325,28 +366,14 @@ public class MainActivity extends Activity implements ServiceCallbacks{
         if (requestCode == REQUEST_CAMERA_PERMISSION) {
             if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
                 // close the app
-                Toast.makeText(MainActivity.this, "Sorry!!!, you can't use this app without granting permission", Toast.LENGTH_LONG).show();
+                Toast.makeText(MainActivity.this, "Necesita activar los permisos " +
+                        "para poder usar esta aplicación", Toast.LENGTH_LONG).show();
                 finish();
             }
         }
     }
 
-    protected void startBackgroundThread() {
-        mBackgroundThread = new HandlerThread("Camera Background");
-        mBackgroundThread.start();
-        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
-    }
 
-    protected void stopBackgroundThread() {
-        mBackgroundThread.quitSafely();
-        try {
-            mBackgroundThread.join();
-            mBackgroundThread = null;
-            mBackgroundHandler = null;
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
 
     @Override
     protected void onResume() {
@@ -363,11 +390,26 @@ public class MainActivity extends Activity implements ServiceCallbacks{
     @Override
     protected void onPause() {
         Log.e(TAG, "onPause");
-        //closeCamera();
+        closeCamera();
         stopBackgroundThread();
         super.onPause();
     }
+    @Override
+    protected void onStart() {
+        super.onStart();
 
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // Unbind from service
+        if (bound) {
+            myService.setCallbacks(null); // unregister
+            unbindService(serviceConnection);
+            bound = false;
+        }
+    }
 
     /** Callbacks for service binding, passed to bindService() */
     private ServiceConnection serviceConnection = new ServiceConnection() {
@@ -391,28 +433,7 @@ public class MainActivity extends Activity implements ServiceCallbacks{
     public void doSomething() {
         takePicture();
     }
-
-
-
-
     //----------CAMERA------------------------//
 
-    private void goToCamera(){
-        Intent cameraIntent = new Intent (MediaStore.ACTION_IMAGE_CAPTURE);
-        if(cameraIntent.resolveActivity(getPackageManager())!=null){
-            startActivityForResult(cameraIntent,REQUEST_IMAGE_CAMERA);
-        }
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if(requestCode == REQUEST_IMAGE_CAMERA){
-            if(resultCode == Activity.RESULT_OK){
-                Bitmap bitmap = (Bitmap) data.getExtras().get("data");
-
-            }
-        }
-    }
 
 }

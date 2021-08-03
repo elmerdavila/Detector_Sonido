@@ -20,39 +20,40 @@ public class VocalServicio extends Service implements DetectarSonidoListener {
     public static final int DETECT_NONE = 0;
     public static final int DETECT_WHISTLE = 1;
     public static int selectedDetection = DETECT_NONE;
-
     private ServiceCallbacks serviceCallbacks;
+
     private final IBinder binder = new LocalBinder();
     // Class used for the client Binder.
     public class LocalBinder extends Binder {
         VocalServicio getService() {
-            // Return this instance of MyService so clients can call public methods
+            // Return this instance of my Service so clients can call public methods
             return VocalServicio.this;
         }
     }
     public void setCallbacks(ServiceCallbacks callbacks) {
         serviceCallbacks = callbacks;
     }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         // TODO Auto-generated method stub
 
         return START_STICKY;
     }
-    public void initNotification(){
-        NotificationCompat.Builder mBuilder =
-                new NotificationCompat.Builder(this)
-                        .setSmallIcon(R.drawable.icono_microfono)
-                        .setContentTitle("Detección de silbidos")
-                        .setContentText("La detección de silbidos está activada.");
-        Intent resultIntent = new Intent(this, MainActivity.class);
-        PendingIntent resultPendingIntent = PendingIntent.getActivity( this,0,
-                resultIntent,PendingIntent.FLAG_UPDATE_CURRENT);
-        mBuilder.setContentIntent(resultPendingIntent);
-        NotificationManager mNotifyMgr =
-                (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        mNotifyMgr.notify(NOTIFICATION_Id, mBuilder.build());
-    }
+//    public void initNotification(){
+//        NotificationCompat.Builder mBuilder =
+//                new NotificationCompat.Builder(this)
+//                        .setSmallIcon(R.drawable.icono_microfono)
+//                        .setContentTitle("Detección de silbidos")
+//                        .setContentText("La detección de silbidos está activada.");
+//        Intent resultIntent = new Intent(this, MainActivity.class);
+//        PendingIntent resultPendingIntent = PendingIntent.getActivity( this,0,
+//                resultIntent,PendingIntent.FLAG_UPDATE_CURRENT);
+//        mBuilder.setContentIntent(resultPendingIntent);
+//        NotificationManager mNotifyMgr =
+//                (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+//        mNotifyMgr.notify(NOTIFICATION_Id, mBuilder.build());
+//    }
     public void startDetection(){
         selectedDetection = DETECT_WHISTLE;
         recorderThread = new RecorderThread();
@@ -80,22 +81,17 @@ public class VocalServicio extends Service implements DetectarSonidoListener {
     }
     @Override
     public IBinder onBind(Intent intent) {
-        initNotification();
+        //initNotification();
         startDetection();
         return binder;
     }
     @Override
     public void onWhistleDetected() {
-
         if (serviceCallbacks != null) {
-            Log.d("silvido","dentro del servicio ");
+            Log.d("testing","dentro del servicio ");
             serviceCallbacks.doSomething();
         }
-//        Intent intent = new Intent(this,VocalAlerta.class);
-//        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-//        startActivity(intent);
-//        Toast.makeText(this, "Silbido detectado", Toast.LENGTH_LONG).show();
-
+        this.stopSelf();
     }
     public void stopNotification(){
         NotificationManager mNotifyMgr = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
